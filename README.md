@@ -110,4 +110,4 @@ When you’re done, output ONLY the final HTML (no markdown fences).
 
 ## 📜 License
 
-MIT License — See [LICENSE](LICENSE)
+GPL-2.0 License — See [LICENSE](LICENSE)
