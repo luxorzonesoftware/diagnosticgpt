@@ -54,9 +54,9 @@ if [[ -n "${OUTDIR}" ]]; then BASE="${OUTDIR%/}"; fi
 mkdir -p "$BASE"
 
 have() { command -v "$1" >/dev/null 2>&1; }
-SUDO=""
+SUDO=()
 if [[ $EUID -ne 0 ]]; then
-  if have sudo && sudo -n true 2>/dev/null; then SUDO="sudo -n"; else SUDO=""; fi
+  if have sudo && sudo -n true 2>/dev/null; then SUDO=(sudo -n); fi
 fi
 
 twrap() { if have timeout; then timeout "${TIMEOUT_SECS}s" "$@"; else "$@"; fi; }
@@ -69,8 +69,14 @@ if [[ -z "${TARGET_HOME}" || ! -d "${TARGET_HOME}" ]]; then TARGET_HOME="$HOME";
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 section() { mkdir -p "$BASE/$1"; }
 save() { local path="$BASE/$1"; shift; { echo "### $(date -Is) :: $*"; echo; "$@" 2>&1 || true; } > "$path"; }
-save_if() { local of="$1"; shift; if have "${1}"; then save "$of" "$@"; fi; }
-copy_if() { local src="$1" destrel="$2"; if [[ -r "$src" ]]; then mkdir -p "$(dirname "$BASE/$destrel")"; $SUDO cp -a --no-preserve=ownership "$src" "$BASE/$destrel" 2>/dev/null || true; fi; }
+save_if() { local of="$1" cmd="$2"; shift 2; if have "$cmd"; then save "$of" "$@"; fi; }
+copy_if() {
+  local src="$1" destrel="$2"
+  if [[ -r "$src" ]]; then
+    mkdir -p "$(dirname "$BASE/$destrel")"
+    "${SUDO[@]}" cp -a --no-preserve=ownership "$src" "$BASE/$destrel" 2>/dev/null || true
+  fi
+}
 copy_user() { local rel="$1"; copy_if "$TARGET_HOME/$rel" "11_desktop/user${rel}"; }
 grepcp() { local pat="$1" src="$2" dest="$3"; if [[ -r "$src" ]]; then mkdir -p "$(dirname "$BASE/$dest")"; grep -E "$pat" "$src" > "$BASE/$dest" 2>/dev/null || true; fi; }
 
@@ -99,9 +105,10 @@ save "00_system/04-time.txt" twrap timedatectl
 save "00_system/05-sysctl-selected.txt" bash -lc 'sysctl -a 2>/dev/null | egrep -i "kernel|fs\.|vm\.|net\." || true'
 save "00_system/06-limits.txt" bash -lc 'ulimit -a 2>/dev/null || true'
 save "00_system/07-cgroups.txt" bash -lc 'cat /sys/fs/cgroup/cgroup.controllers 2>/dev/null || true'
-save "00_system/08-filesystems.txt" bash -lc 'df -hT; echo; '"$SUDO"' mount; echo; cat /etc/fstab 2>/dev/null || true'
+save "00_system/08-filesystems.txt" bash -lc "df -hT; echo; ${SUDO[*]} mount; echo; cat /etc/fstab 2>/dev/null || true"
 save "00_system/09-swap.txt" bash -lc 'swapon --show --bytes --output=NAME,TYPE,SIZE,USED,PRIO 2>/dev/null || true'
 save_if "00_system/10-zramctl.txt" zramctl zramctl
+# shellcheck disable=SC2016
 save "00_system/11-pressures.txt" bash -lc 'for r in cpu io memory; do echo "== $r =="; cat /proc/pressure/$r 2>/dev/null || true; echo; done'
 save "00_system/12-boot-loader.txt" bash -lc 'bootctl status 2>/dev/null || efibootmgr -v 2>/dev/null || true'
 save "00_system/13-virt.txt" systemd-detect-virt
@@ -121,11 +128,11 @@ save "02_hardware/01-mem.txt" bash -lc 'grep -E "Mem(Total|Free|Available)|Swap(
 save "02_hardware/02-block.txt" bash -lc 'lsblk -e7 -o NAME,TYPE,RM,SIZE,RO,MODEL,SERIAL,TRAN,MOUNTPOINTS'
 save "02_hardware/03-pci.txt" bash -lc 'lspci -nnk 2>/dev/null || true'
 save_if "02_hardware/04-usb.txt" lsusb lsusb -vt
-save_if "02_hardware/05-dmi.txt" dmidecode $SUDO dmidecode
+save_if "02_hardware/05-dmi.txt" dmidecode "${SUDO[@]}" dmidecode
 save_if "02_hardware/06-sensors.txt" sensors sensors
 if have smartctl; then
   while read -r dev type; do
-    case "$type" in disk|rom|ssd) save "02_hardware/smart-${dev}.txt" $SUDO smartctl -a "/dev/$dev";; esac
+    case "$type" in disk|rom|ssd) save "02_hardware/smart-${dev}.txt" "${SUDO[@]}" smartctl -a "/dev/$dev";; esac
   done < <(lsblk -ndo NAME,TYPE 2>/dev/null)
 fi
 
@@ -162,9 +169,9 @@ save_if "05_network/01-nmcli.txt" nmcli nmcli -o general status
 save_if "05_network/02-nmcli-dev.txt" nmcli nmcli -o device show
 save_if "05_network/03-systemd-resolved.txt" resolvectl resolvectl status
 save "05_network/04-sockets.txt" bash -lc 'ss -tulpen'
-save_if "05_network/05-nft.txt" nft $SUDO nft list ruleset
-save_if "05_network/06-iptables-save.txt" iptables $SUDO iptables-save
-save_if "05_network/07-ufw-status.txt" ufw $SUDO ufw status verbose
+save_if "05_network/05-nft.txt" nft "${SUDO[@]}" nft list ruleset
+save_if "05_network/06-iptables-save.txt" iptables "${SUDO[@]}" iptables-save
+save_if "05_network/07-ufw-status.txt" ufw "${SUDO[@]}" ufw status verbose
 copy_if "/etc/hosts" "05_network/hosts"
 copy_if "/etc/nsswitch.conf" "05_network/nsswitch.conf"
 save "05_network/08-ssh.txt" bash -lc "journalctl -u sshd --since '$SINCE' --no-pager 2>/dev/null || true"
@@ -180,8 +187,8 @@ save "06_packages/04-native.txt" pacman -Qen
 save "06_packages/05-foreign-AUR.txt" pacman -Qm
 save "06_packages/06-orphans.txt" bash -lc 'pacman -Qdt 2>/dev/null || true'
 save "06_packages/07-owned-binaries.txt" bash -lc 'pacman -Qo /usr/bin/* 2>/dev/null | sort -u || true'
-save "06_packages/08-db-check.txt" bash -lc "$SUDO pacman -Dk 2>&1 || true"
-if [[ $FAST -eq 0 ]]; then save "06_packages/09-integrity-Qkk.txt" bash -lc '$SUDO pacman -Qkk --noprogressbar 2>&1 || true'; fi
+save "06_packages/08-db-check.txt" bash -lc "${SUDO[*]} pacman -Dk 2>&1 || true"
+if [[ $FAST -eq 0 ]]; then save "06_packages/09-integrity-Qkk.txt" bash -lc "${SUDO[*]} pacman -Qkk --noprogressbar 2>&1 || true"; fi
 save_if "06_packages/10-checkupdates.txt" checkupdates checkupdates
 save_if "06_packages/11-yay-updates.txt" yay yay -Qua
 
@@ -205,15 +212,17 @@ if have coredumpctl; then
 fi
 
 log "Security / hardening / IOC…"
+# shellcheck disable=SC2016
 save "09_security/00-vulns-sysfs.txt" bash -lc 'for f in /sys/devices/system/cpu/vulnerabilities/*; do echo "## $f"; cat "$f" 2>/dev/null; echo; done'
 save "09_security/01-sysctl-hardening.txt" bash -lc 'sysctl -a 2>/dev/null | egrep "kernel\.kptr_restrict|kernel\.yama\.ptrace_scope|kernel\.unprivileged_(bpf_disabled|userns_clone)|fs\.protected_(hardlinks|symlinks|regular)" || true'
 save "09_security/02-auth-logins.txt" bash -lc 'last -a 2>/dev/null | head -n 200; echo; test -r /var/log/btmp && lastb -a 2>/dev/null | head -n 200 || true'
-save "09_security/03-sudoers.txt" bash -lc 'ls -l /etc/sudoers /etc/sudoers.d 2>/dev/null; echo; '"$SUDO"' cat /etc/sudoers 2>/dev/null || true; echo; '"$SUDO"' ls -l /etc/sudoers.d 2>/dev/null || true'
+save "09_security/03-sudoers.txt" bash -lc "ls -l /etc/sudoers /etc/sudoers.d 2>/dev/null; echo; ${SUDO[*]} cat /etc/sudoers 2>/dev/null || true; echo; ${SUDO[*]} ls -l /etc/sudoers.d 2>/dev/null || true"
 save "09_security/04-suid-sgid.txt" bash -lc 'find /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -xdev \( -perm -4000 -o -perm -2000 \) -type f -printf "%M %u:%g %p\n" 2>/dev/null | sort'
 save_if "09_security/05-capabilities.txt" getcap getcap -r /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin 2>/dev/null
-save "09_security/06-cron.txt" bash -lc 'ls -la /etc/cron* 2>/dev/null; echo; '"$SUDO"' ls -la /var/spool/cron 2>/dev/null || true'
-save_if "09_security/07-rkhunter.txt" rkhunter $SUDO rkhunter --versioncheck --sk --report-warnings-only
-save_if "09_security/08-chkrootkit.txt" chkrootkit $SUDO chkrootkit -q
+save "09_security/06-cron.txt" bash -lc "ls -la /etc/cron* 2>/dev/null; echo; ${SUDO[*]} ls -la /var/spool/cron 2>/dev/null || true"
+save_if "09_security/07-rkhunter.txt" rkhunter "${SUDO[@]}" rkhunter --versioncheck --sk --report-warnings-only
+save_if "09_security/08-chkrootkit.txt" chkrootkit "${SUDO[@]}" chkrootkit -q
+# shellcheck disable=SC2016
 save "09_security/09-open-listeners.txt" bash -lc 'ss -tulpen | awk "{print $1, $2, $5, $6, $7}"'
 save "09_security/10-new-users-last30.txt" bash -lc "getent passwd | awk -F: '\$3>=1000{print \$1":"\$3":"\$6":"\$7}' | sort"
 
@@ -228,11 +237,15 @@ save_if "10_perf/06-iotop.txt" iotop iotop -ao -b -n 3
 
 save "11_desktop/00-user-journal.txt" bash -lc "journalctl _UID=$TARGET_UID --since '$SINCE' --no-pager 2>/dev/null || true"
 
-split_words() { sed 's/[;:]/ /g' <<<"$*"; }
+split_words() {
+  local s="$*"
+  echo "${s//[;:]/ }"
+}
 
 detect_desktops() {
   local hits=()
-  local envs="$(split_words "${XDG_CURRENT_DESKTOP:-}") $(split_words "${DESKTOP_SESSION:-}")"
+  local envs
+  envs="$(split_words "${XDG_CURRENT_DESKTOP:-}") $(split_words "${DESKTOP_SESSION:-}")"
   envs="$(tr '[:upper:]' '[:lower:]' <<<"$envs")"
   for w in $envs; do
     case "$w" in
@@ -450,7 +463,7 @@ collect_thedesk() {
 }
 
 log "Desktop Environment detection…"
-DE_LIST=( $(detect_desktops) )
+mapfile -t DE_LIST < <(detect_desktops)
 { echo "Detected DE hints: ${DE_LIST[*]:-(none)}"; } > "$BASE/11_desktop/DE-detection.txt"
 
 for de in "${DE_LIST[@]}"; do
@@ -554,7 +567,7 @@ if [[ ${WRITE_SUMMARY} -eq 1 ]]; then
     echo "packages: $(wc -l < "$BASE/06_packages/02-installed.txt" 2>/dev/null || echo 0)"
     echo "failed_services: $(systemctl --failed --no-legend 2>/dev/null | wc -l || echo 0)"
     echo "coredumps_since: $SINCE => $(coredumpctl --no-pager list --since "$SINCE" 2>/dev/null | awk 'NR>1' | wc -l || echo 0)"
-    echo "oom_events: $(journalctl -k --since "$SINCE" 2>/dev/null | grep -Ei 'Out of memory|oom-killer' | wc -l || echo 0)"
+    echo "oom_events: $(journalctl -k --since "$SINCE" 2>/dev/null | grep -ci 'Out of memory\|oom-killer' || true)"
     echo
     echo "Top warnings/errors (journal, since $SINCE):"
     journalctl -p 3..4 --since "$SINCE" --no-pager 2>/dev/null | head -n 50 || true
