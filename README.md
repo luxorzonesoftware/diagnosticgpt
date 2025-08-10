@@ -42,18 +42,19 @@ Optional flags:
 * `--redact` — Redact sensitive info
 * `--summary` — Include a human-readable summary in the output
 * `--split-mb <N>` — Split the final archive into `<N>` MB parts
+* `--archive-format <zip|tar>` — Choose archive format (default `zip`)
 
 ---
 
 ## 📂 Output
 
-Outputs a **`.zip`** archive to `/tmp`:
+Outputs a **`.zip`** archive to `/tmp` by default:
 
 ```
 /tmp/diagnosticgpt-<host>-<timestamp>.zip
 ```
 
-If `-o` is used, the archive and snapshot folder will be written there instead.
+Use `--archive-format tar` to produce `/tmp/diagnosticgpt-<host>-<timestamp>.tar.gz` instead. If `-o` is used, the archive and snapshot folder will be written there instead.
 
 Contents include:
 
@@ -70,7 +71,7 @@ Contents include:
 2. Detects your system environment and desktop environment(s).
 3. Runs a set of diagnostic commands for each subsystem.
 4. Saves the outputs to structured files.
-5. Compresses the folder into a `.zip` archive.
+5. Compresses the folder into a `.zip` or `.tar.gz` archive.
 
 ---
 

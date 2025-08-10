@@ -9,9 +9,10 @@
 #   ./diagnosticgpt.sh --redact
 #   ./diagnosticgpt.sh --summary           # write compact summary for pasting
 #   ./diagnosticgpt.sh --split-mb 200      # split archive into 200MB parts
+#   ./diagnosticgpt.sh --archive-format tar # create tar.gz instead of zip
 #
 # Output:
-#   /tmp/diagnosticgpt-<host>-<timestamp>/ ... + matching .zip (or split parts)
+#   /tmp/diagnosticgpt-<host>-<timestamp>/ ... + matching .zip or .tar.gz (or split parts)
 #
 # Notes:
 # - Collects sensitive data (IPs, MACs, usernames, installed packages, logs, configs).
@@ -31,6 +32,7 @@ FAST=0
 REDACT=0
 WRITE_SUMMARY=0
 SPLIT_MB=""
+ARCHIVE_FORMAT="zip"
 TIMEOUT_SECS="${TIMEOUT_SECS:-30}"
 HOST="$(hostname -s 2>/dev/null || echo unknown)"
 TS="$(date +%Y%m%d-%H%M%S)"
@@ -44,6 +46,7 @@ while [[ $# -gt 0 ]]; do
     --redact) REDACT=1;;
     --summary) WRITE_SUMMARY=1;;
     --split-mb) shift; SPLIT_MB="${1:-}";;
+    --archive-format) shift; ARCHIVE_FORMAT="${1:-zip}";;
     -h|--help)
       sed -n '1,200p' "$0"; exit 0;;
   esac
@@ -545,8 +548,16 @@ if [[ $REDACT -eq 1 ]]; then
 fi
 
 log "Creating archive…"
-ARCHIVE="${BASE}.zip"
-( cd "$(dirname "$BASE")" && zip -r -q "$(basename "$BASE").zip" "$(basename "$BASE")" )
+case "${ARCHIVE_FORMAT}" in
+  tar)
+    ARCHIVE="${BASE}.tar.gz"
+    ( cd "$(dirname "$BASE")" && tar -czf "$(basename "$BASE").tar.gz" "$(basename "$BASE")" )
+    ;;
+  *)
+    ARCHIVE="${BASE}.zip"
+    ( cd "$(dirname "$BASE")" && zip -r -q "$(basename "$BASE").zip" "$(basename "$BASE")" )
+    ;;
+esac
 
 
 if [[ -n "${SPLIT_MB}" ]]; then
