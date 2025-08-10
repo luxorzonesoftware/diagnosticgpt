@@ -7,10 +7,12 @@
 ## ✨ Features
 
 * **Full System Snapshot** — Kernel, OS, locales, hardware, drivers, services, logs, and more.
-* **Desktop Environment Aware** — Collects DE-specific configs and settings.
+* **Desktop Environment Aware** — Collects DE-specific configs and settings for GNOME, KDE Plasma, Xfce, Cinnamon, MATE, LXQt, LXDE, Budgie, Pantheon, Deepin, Enlightenment, UKUI, Phosh, COSMIC, Cutefish, GNOME Flashback, Trinity, Lumina, Moksha, CDE, Liri, Maui, theDesk, and more.
 * **Security & Integrity Checks** — Rootkit scans, package verification, open ports, SUID/SGID binaries.
 * **Performance Data** — CPU, memory, I/O, process lists, and pressure stall info.
 * **Portable & Read-Only** — No system changes, only data collection.
+
+> ⚠️ **Sensitive data warning:** the archive includes IPs, MAC addresses, usernames, installed packages, logs, and configs. Share only with trusted parties.
 
 ---
 
@@ -45,10 +47,10 @@ Optional flags:
 
 ## 📂 Output
 
-Outputs a **`.zip`** archive to your home directory:
+Outputs a **`.zip`** archive to `/tmp`:
 
 ```
-~/diagnosticgpt-<username>-<MM-DD-YY>-<HH:MM AM/PM>.zip
+/tmp/diagnosticgpt-<host>-<timestamp>.zip
 ```
 
 If `-o` is used, the archive and snapshot folder will be written there instead.
@@ -77,7 +79,7 @@ Contents include:
 1. Locate your output file:
 
 ```bash
-ls ~/diagnosticgpt-*.zip
+ls /tmp/diagnosticgpt-*.zip
 ```
 
 2. Upload the `.zip` file directly into your ChatGPT conversation.
