@@ -12,7 +12,7 @@
 #   ./diagnosticgpt.sh --archive-format tar # create tar.gz instead of zip
 #
 # Output:
-#   /tmp/diagnosticgpt-<host>-<timestamp>/ ... + matching .zip or .tar.gz (or split parts)
+#   ~/diagnosticgpt-<timestamp>.zip (or .tar.gz) written to home; working data in temp dir
 #
 # Notes:
 # - Collects sensitive data (IPs, MACs, usernames, installed packages, logs, configs).
@@ -35,8 +35,12 @@ SPLIT_MB=""
 ARCHIVE_FORMAT="zip"
 TIMEOUT_SECS="${TIMEOUT_SECS:-30}"
 HOST="$(hostname -s 2>/dev/null || echo unknown)"
-TS="$(date +%Y%m%d-%H%M%S)"
-BASE="/tmp/${PROGRAM_NAME}-${HOST}-${TS}"
+
+HOME_DIR="$HOME"
+TS="$(date +%m%d%y-%I:%M%p 2>/dev/null || echo 000000-0000)"
+OUT_BASENAME="${PROGRAM_NAME}-${TS}"
+WORKDIR="$(mktemp -d -t ${PROGRAM_NAME}-XXXXXX)"
+BASE="${WORKDIR}/${OUT_BASENAME}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,7 +57,11 @@ while [[ $# -gt 0 ]]; do
   shift || true
 done
 
-if [[ -n "${OUTDIR}" ]]; then BASE="${OUTDIR%/}"; fi
+if [[ -n "${OUTDIR}" ]]; then
+  BASE="${OUTDIR%/}"
+  WORKDIR="$(dirname "$BASE")"
+  OUT_BASENAME="$(basename "$BASE")"
+fi
 mkdir -p "$BASE"
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -550,12 +558,12 @@ fi
 log "Creating archive…"
 case "${ARCHIVE_FORMAT}" in
   tar)
-    ARCHIVE="${BASE}.tar.gz"
-    ( cd "$(dirname "$BASE")" && tar -czf "$(basename "$BASE").tar.gz" "$(basename "$BASE")" )
+    ARCHIVE="${HOME_DIR}/${OUT_BASENAME}.tar.gz"
+    ( cd "$WORKDIR" && tar -czf "$ARCHIVE" "$OUT_BASENAME" )
     ;;
   *)
-    ARCHIVE="${BASE}.zip"
-    ( cd "$(dirname "$BASE")" && zip -r -q "$(basename "$BASE").zip" "$(basename "$BASE")" )
+    ARCHIVE="${HOME_DIR}/${OUT_BASENAME}.zip"
+    ( cd "$WORKDIR" && zip -r -q "$ARCHIVE" "$OUT_BASENAME" )
     ;;
 esac
 
