@@ -48,13 +48,13 @@ Optional flags:
 
 ## 📂 Output
 
-Outputs a **`.zip`** archive to `/tmp` by default:
+Outputs a **`.zip`** archive to your **home directory** by default:
 
 ```
-/tmp/diagnosticgpt-<host>-<timestamp>.zip
+~/diagnosticgpt-<timestamp>.zip
 ```
 
-Use `--archive-format tar` to produce `/tmp/diagnosticgpt-<host>-<timestamp>.tar.gz` instead. If `-o` is used, the archive and snapshot folder will be written there instead.
+Use `--archive-format tar` to produce `~/diagnosticgpt-<timestamp>.tar.gz` instead. If `-o` is used, the snapshot folder will be created there, but the archive still lands in your home directory.
 
 Contents include:
 
@@ -80,7 +80,7 @@ Contents include:
 1. Locate your output file:
 
 ```bash
-ls /tmp/diagnosticgpt-*.zip
+ls ~/diagnosticgpt-*.zip
 ```
 
 2. Upload the `.zip` file directly into your ChatGPT conversation.
